@@ -63,7 +63,87 @@ __global__ void tc_base(int nv, dev::Graph g, AccType *total) {
  
     atomicAdd(total, count);
 }
+//why the upper result is not correspond with the lower result???
+__global__ void tc_opt(int nv, dev::Graph g, AccType *total) {
+  
+  int thread_id = blockIdx.x * 9.x + threadIdx.x; // global thread index
+  int num_threads =  gridDim.x * blockDim.x;
+  // int start = (nv * thread_id)/num_threads;
+  // int end = (nv *())
+  AccType count = 0;
+  for (int vid = thread_id; vid < nv; vid += num_threads) {
+    // auto v = vid;
+    int *v_ptr = g.getNeighbor(vid);
+    int v_size = g.getOutDegree(vid);
+    for (auto e = 0; e < v_size; e ++) {
+      auto u = v_ptr[e];
+      // if(u >= vid)
+      //   break;
+      int u_size = g.getOutDegree(u);
+      count += intersect_num(v_ptr, v_size, g.getNeighbor(u), u_size);
+    }
+  }
+  atomicAdd(total, count);
+}
+// opt by using a better algorithm
+DEV_INLINE int merge_num(int *a, int size_a, int *b, int size_b) {
+  if (size_a == 0 || size_b == 0)
+    return 0;
+  int num = 0;
+  int i = 0;
+  int j = 0;
+  while(i < size_a && j < size_b){
+    if(a[i] > b[j]){
+      j++;
+    }else if(a[i] < b[j]){
+      i++;
+    }else{
+      num++;
+      i++;
+      j++;
+    }
+  }
+  return num;
+}
 
+__global__ void tc_opt_merge_calc(int nv, dev::Graph g, AccType *total) {
+  
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
+  int num_threads =  gridDim.x * blockDim.x;
 
+  
+  AccType count = 0;
+  for (int vid = thread_id; vid < nv; vid += num_threads) {
+    // auto v = vid;
+    int *v_ptr = g.getNeighbor(vid);
+    int v_size = g.getOutDegree(vid);
+    for (auto e = 0; e < v_size; e ++) {
+      auto u = v_ptr[e];
+      int u_size = g.getOutDegree(u);
+      count += merge_num(v_ptr, v_size, g.getNeighbor(u), u_size);
+    }
+  }
+  
+  atomicAdd(total, count);
+}
+//opt for a check for a var equals to it self
+__global__ void calc_connect_itself(int nv, dev::Graph g, AccType *total) {
+  
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
+  int num_threads =  gridDim.x * blockDim.x;
 
-
+  
+  AccType count = 0;
+  for (int vid = thread_id; vid < nv; vid += num_threads) {
+    // auto v = vid;
+    int *v_ptr = g.getNeighbor(vid);
+    int v_size = g.getOutDegree(vid);
+    for (auto e = 0; e < v_size; e ++) {
+      auto u = v_ptr[e];
+      if(u == vid){
+        atomicAdd(total,1);
+      }
+    }
+  }
+  
+}

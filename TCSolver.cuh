@@ -21,7 +21,7 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
 
   AccType *d_total;
   int count_length = 6;
-  AccType h_total[count_length] = {0};
+  AccType h_total[count_length] = {0,0,0};
   DMALLOC(d_total, count_length * sizeof(AccType));
   TODEV(d_total, &h_total, count_length * sizeof(AccType));
   // CLEAN(d_total, 4*sizeof(AccType));
@@ -30,7 +30,7 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
   int grid_size, block_size; // uninitialized
 
   H_ERR(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size,
-                                               tc_base, 0,
+                                               tc_opt, 0,
                                                (int)MAX_BLOCK_SIZE));
   size_t flist_size = grid_size * per_block_vlist_size;
   std::cout << "flist_size is " << flist_size / (1024 * 1024)
@@ -45,11 +45,31 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
 
   WAIT();
   double end = wtime();
-  std::cout << "Triangle counting" << " matching  time: " << (end - start)
+  std::cout << "Triangle counting base " << " matching  time: " << (end - start)
+            << " seconds" << std::endl;
+
+  start = wtime();
+  tc_opt<<<grid_size, block_size>>>(nv, d_g, d_total+1);
+
+
+  WAIT();
+  end = wtime();
+  std::cout << "Triangle counting opt" << " matching  time: " << (end - start)
+            << " seconds" << std::endl;
+
+  start = wtime();
+  tc_opt_merge_calc<<<grid_size, block_size>>>(nv, d_g, d_total+2);
+
+
+  WAIT();
+  end = wtime();
+  std::cout << "Triangle counting opt" << " matching  time: " << (end - start)
             << " seconds" << std::endl;
 
   TOHOST(d_total, &h_total, count_length * sizeof(AccType));
-  result = h_total[0];
+
+  // calc_connect_itself<<<grid_size, block_size>>>(nv, d_g, d_total+3);
+  result = h_total[1];
 
  
 

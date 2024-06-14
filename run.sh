@@ -1,1 +1,1 @@
-./test_tc ~/data/mtx_graph/mico.mtx
+./test_tc ./mico.mtx
