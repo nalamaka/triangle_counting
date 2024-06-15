@@ -35,7 +35,8 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
   size_t flist_size = grid_size * per_block_vlist_size;
   std::cout << "flist_size is " << flist_size / (1024 * 1024)
             << " MB, grid_size is " << grid_size << ", per_block_vlist_size is "
-            << per_block_vlist_size << std::endl;
+            << per_block_vlist_size << "nv size is"<< nv << "ne size is " << ne 
+            <<std::endl;
   int *d_frontier_list;
   DMALLOC(d_frontier_list, flist_size);
 
@@ -49,10 +50,21 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
             << " seconds" << std::endl;
 
   start = wtime();
-  tc_opt_reduce_diff<<<grid_size, block_size>>>(nv, d_g, d_total+1);
+  tc_opt_div_task_by_edge<<<grid_size, block_size>>>(ne, d_g, d_total+1);
 
 
   WAIT();
+
+  end = wtime();
+  std::cout << "Triangle counting opt calc edge diff" << " matching  time: " << (end - start)
+            << " seconds" << std::endl;
+
+  start = wtime();
+  tc_opt_reduce_diff<<<grid_size, block_size>>>(nv, d_g, d_total+2);
+
+
+  WAIT();
+
   end = wtime();
   std::cout << "Triangle counting opt reduce diff" << " matching  time: " << (end - start)
             << " seconds" << std::endl;

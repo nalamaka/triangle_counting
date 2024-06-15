@@ -167,7 +167,7 @@ DEV_INLINE int intersect_num_bs_reduce_diff(int *a, int size_a, int *b, int size
     search_size = size_a;
   }
 
-  for (auto i = 0; i < lookup_size; i += 2) {
+  for (auto i = 0; i < lookup_size; i += 1) {
     auto key = lookup[i]; // each thread picks a vertex as the key
     num += binary_search_reduce_diff(search, key, search_size);
   }
@@ -190,6 +190,25 @@ __global__ void tc_opt_reduce_diff(int nv, dev::Graph g, AccType *total) {
       int u_size = g.getOutDegree(u);
       count += intersect_num_bs_reduce_diff(v_ptr, v_size, g.getNeighbor(u), u_size);
     }
+  }
+  __syncwarp();
+  atomicAdd(total, count);
+}
+__global__ void tc_opt_div_task_by_edge(int ne, dev::Graph g, AccType *total) {
+  
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
+  int num_threads =  gridDim.x * blockDim.x;
+  AccType count = 0;
+  for (int eid = thread_id; eid < ne; eid += num_threads) {
+    // auto v = vid;
+    int vid = g.get_src(eid);
+    int *v_ptr = g.getNeighbor(vid);
+    int v_size = g.getOutDegree(vid);
+    int vid1 = g.get_dst(eid);
+    int *v_ptr1 = g.getNeighbor(vid1);
+    int v_size1 = g.getOutDegree(vid1);
+    count += merge_num(v_ptr, v_size, v_ptr1, v_size1);
+    // }
   }
   __syncwarp();
   atomicAdd(total, count);
