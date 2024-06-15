@@ -66,7 +66,7 @@ __global__ void tc_base(int nv, dev::Graph g, AccType *total) {
 //why the upper result is not correspond with the lower result???
 __global__ void tc_opt(int nv, dev::Graph g, AccType *total) {
   
-  int thread_id = blockIdx.x * 9.x + threadIdx.x; // global thread index
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
   int num_threads =  gridDim.x * blockDim.x;
   // int start = (nv * thread_id)/num_threads;
   // int end = (nv *())
@@ -126,8 +126,55 @@ __global__ void tc_opt_merge_calc(int nv, dev::Graph g, AccType *total) {
   
   atomicAdd(total, count);
 }
-//opt for a check for a var equals to it self
-__global__ void calc_connect_itself(int nv, dev::Graph g, AccType *total) {
+
+__forceinline__ __device__ int binary_search_reduce_diff(int *list, int key, int size) {
+  int l = 0;
+  int r = size - 1;
+  while (r >= l) {
+    int mid = l + (r - l) / 2;
+    int value = list[mid];
+    if (value == key)
+      return 1;
+    else if (value < key)
+      l = mid + 1;
+    else
+      r = mid - 1;
+  }
+  return 0;
+}
+
+DEV_INLINE int intersect_num_bs_reduce_diff(int *a, int size_a, int *b, int size_b) {
+  if (size_a == 0 || size_b == 0)
+    return 0;
+  int thread_lane =
+      threadIdx.x & (WARP_SIZE - 1);       // thread index within the warp
+  int warp_lane = threadIdx.x / WARP_SIZE; // warp index within the CTA
+  int num = 0;
+  int *lookup;
+  int *search;
+  int lookup_size;
+  int search_size;
+  if(size_b > size_a){
+    lookup = a;
+    search = b;
+    lookup_size = size_a;
+    search_size = size_b;
+    // __syncwarp();
+  }else{
+    lookup = b;
+    search = a;
+    lookup_size = size_b;
+    search_size = size_a;
+  }
+
+  for (auto i = 0; i < lookup_size; i += 2) {
+    auto key = lookup[i]; // each thread picks a vertex as the key
+    num += binary_search_reduce_diff(search, key, search_size);
+  }
+  return num;
+}
+
+__global__ void tc_opt_reduce_diff(int nv, dev::Graph g, AccType *total) {
   
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x; // global thread index
   int num_threads =  gridDim.x * blockDim.x;
@@ -138,12 +185,12 @@ __global__ void calc_connect_itself(int nv, dev::Graph g, AccType *total) {
     // auto v = vid;
     int *v_ptr = g.getNeighbor(vid);
     int v_size = g.getOutDegree(vid);
-    for (auto e = 0; e < v_size; e ++) {
+    for (auto e = 0; e < v_size; e += 1) {
       auto u = v_ptr[e];
-      if(u == vid){
-        atomicAdd(total,1);
-      }
+      int u_size = g.getOutDegree(u);
+      count += intersect_num_bs_reduce_diff(v_ptr, v_size, g.getNeighbor(u), u_size);
     }
   }
-  
+  __syncwarp();
+  atomicAdd(total, count);
 }

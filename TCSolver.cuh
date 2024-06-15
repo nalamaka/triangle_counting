@@ -49,12 +49,12 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
             << " seconds" << std::endl;
 
   start = wtime();
-  tc_opt<<<grid_size, block_size>>>(nv, d_g, d_total+1);
+  tc_opt_reduce_diff<<<grid_size, block_size>>>(nv, d_g, d_total+1);
 
 
   WAIT();
   end = wtime();
-  std::cout << "Triangle counting opt" << " matching  time: " << (end - start)
+  std::cout << "Triangle counting opt reduce diff" << " matching  time: " << (end - start)
             << " seconds" << std::endl;
 
   start = wtime();
@@ -63,7 +63,7 @@ void tc_solver(project_GraphFold::Graph &hg, uint64_t &result) {
 
   WAIT();
   end = wtime();
-  std::cout << "Triangle counting opt" << " matching  time: " << (end - start)
+  std::cout << "Triangle counting opt merge calc" << " matching  time: " << (end - start)
             << " seconds" << std::endl;
 
   TOHOST(d_total, &h_total, count_length * sizeof(AccType));
